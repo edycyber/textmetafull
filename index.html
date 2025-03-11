@@ -266,7 +266,7 @@
         Space to jump | Shift to sprint | 1-2 to switch weapons | E to enter vehicle
     </div>
     <div id="preloader">
-        <h2>Loading JUJU War Game...</h2>
+        <h2>Loading JOJO WAR GAME...</h2>
         <div id="loading-bar">
             <div id="loading-progress"></div>
         </div>
@@ -348,7 +348,6 @@
             if (assetsLoaded >= totalAssets) {
                 setTimeout(() => {
                     document.querySelector('#preloader').style.display = 'none';
-                    // Music will start after first user interaction
                 }, 500);
             }
         }
@@ -356,7 +355,7 @@
         // Music functions
         function initializeBackgroundMusic() {
             try {
-                backgroundMusic = new Audio('./energetic.mp3'); // Explicit path
+                backgroundMusic = new Audio('./energetic.mp3');
                 backgroundMusic.volume = 0.5;
                 backgroundMusic.loop = false;
                 
@@ -724,7 +723,7 @@
 
         document.addEventListener('click', () => {
             renderer.domElement.requestPointerLock();
-            startBackgroundMusic(); // Start music on first user interaction
+            startBackgroundMusic();
         });
 
         function reload() {
@@ -873,34 +872,53 @@
             bullets.forEach(bullet => bullet.remove());
             bullets = [];
             stopBackgroundMusic();
+            document.exitPointerLock();
         }
 
-        document.getElementById('restart-button').addEventListener('click', () => {
+        function resetGame() {
+            // Reset game state
             health = 100;
             shield = 100;
             currentAmmo = weapons[currentWeapon].maxAmmo;
             totalAmmo = 90;
             kills = 0;
             gameActive = true;
-            
-            enemies.forEach(enemy => enemy.remove());
+            reloading = false;
+            mouseDown = false;
+            pitch = 0;
+            yaw = 0;
+            player.velocity.set(0, 0, 0);
+            player.canJump = false;
+
+            // Clear arrays
+            while (enemies.length > 0) {
+                enemies[0].remove();
+            }
             enemies = [];
-            bullets.forEach(bullet => bullet.remove());
+            while (bullets.length > 0) {
+                bullets[0].remove();
+            }
             bullets = [];
 
+            // Reset UI
             document.getElementById('health-fill').style.width = '100%';
             document.getElementById('shield-fill').style.width = '100%';
             document.getElementById('ammo-counter').textContent = `${currentAmmo} / ${totalAmmo}`;
             document.getElementById('kill-counter').textContent = `Kills: 0`;
             document.getElementById('game-over').style.display = 'none';
 
-            const x = Math.random() * 80 - 40;
-            const z = Math.random() * 80 - 40;
-            camera.position.set(x, getHeightAtPosition(x, z) + player.height, z);
-            
+            // Reset camera position
+            camera.position.set(0, player.height, 0);
+            camera.rotation.set(0, 0, 0);
+
+            // Restart game elements
             spawnEnemies();
             startBackgroundMusic();
-        });
+        }
+
+        // Add restart button listener
+        const restartButton = document.getElementById('restart-button');
+        restartButton.addEventListener('click', resetGame);
 
         const composer = new THREE.EffectComposer(renderer);
         const renderPass = new THREE.RenderPass(scene, camera);
@@ -950,6 +968,7 @@
             composer.render();
         }
 
+        // Initial game setup
         camera.position.set(0, player.height, 0);
         spawnEnemies();
         animate();
