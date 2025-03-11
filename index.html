@@ -266,7 +266,7 @@
         Space to jump | Shift to sprint | 1-2 to switch weapons | E to enter vehicle
     </div>
     <div id="preloader">
-        <h2>Loading Halo-like FPS Game...</h2>
+        <h2>Loading JUJU War Game...</h2>
         <div id="loading-bar">
             <div id="loading-progress"></div>
         </div>
@@ -334,6 +334,7 @@
         let bullets = [];
         let currentWeapon = 0;
         let backgroundMusic;
+        let musicStarted = false;
 
         const weapons = [
             { name: "Assault Rifle", maxAmmo: 30, fireRate: 0.1, damage: 10, auto: true, bulletSpeed: 2 },
@@ -347,29 +348,55 @@
             if (assetsLoaded >= totalAssets) {
                 setTimeout(() => {
                     document.querySelector('#preloader').style.display = 'none';
-                    startBackgroundMusic(); // Start music when loading is complete
+                    // Music will start after first user interaction
                 }, 500);
             }
         }
 
         // Music functions
+        function initializeBackgroundMusic() {
+            try {
+                backgroundMusic = new Audio('./energetic.mp3'); // Explicit path
+                backgroundMusic.volume = 0.5;
+                backgroundMusic.loop = false;
+                
+                backgroundMusic.addEventListener('ended', function() {
+                    this.currentTime = 0;
+                    this.play().catch(error => console.error('Error replaying music:', error));
+                });
+
+                backgroundMusic.addEventListener('error', function(e) {
+                    console.error('Error loading audio:', e);
+                });
+
+                return true;
+            } catch (error) {
+                console.error('Error initializing music:', error);
+                return false;
+            }
+        }
+
         function startBackgroundMusic() {
-            backgroundMusic = new Audio('energetic.mp3');
-            backgroundMusic.loop = false; // We'll handle looping manually
-            backgroundMusic.volume = 0.5; // Adjust volume as needed (0.0 to 1.0)
-            backgroundMusic.play();
-            
-            // Add event listener for when music ends
-            backgroundMusic.addEventListener('ended', function() {
-                this.currentTime = 0; // Reset to start
-                this.play(); // Play again
-            });
+            if (!backgroundMusic) {
+                if (!initializeBackgroundMusic()) return;
+            }
+            if (!musicStarted) {
+                backgroundMusic.play()
+                    .then(() => {
+                        musicStarted = true;
+                        console.log('Music started playing');
+                    })
+                    .catch(error => {
+                        console.error('Error playing music:', error);
+                    });
+            }
         }
 
         function stopBackgroundMusic() {
-            if (backgroundMusic) {
+            if (backgroundMusic && musicStarted) {
                 backgroundMusic.pause();
                 backgroundMusic.currentTime = 0;
+                musicStarted = false;
             }
         }
 
@@ -695,7 +722,10 @@
             if (e.button === 0) mouseDown = false;
         });
 
-        document.addEventListener('click', () => renderer.domElement.requestPointerLock());
+        document.addEventListener('click', () => {
+            renderer.domElement.requestPointerLock();
+            startBackgroundMusic(); // Start music on first user interaction
+        });
 
         function reload() {
             if (reloading || currentAmmo === weapons[currentWeapon].maxAmmo || totalAmmo === 0) return;
@@ -869,7 +899,7 @@
             camera.position.set(x, getHeightAtPosition(x, z) + player.height, z);
             
             spawnEnemies();
-            startBackgroundMusic(); // Restart music on game restart
+            startBackgroundMusic();
         });
 
         const composer = new THREE.EffectComposer(renderer);
