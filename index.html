@@ -185,6 +185,14 @@
             height: 100%;
             pointer-events: none;
         }
+        #bullet-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
         .enemy {
             position: absolute;
             width: 100px;
@@ -193,6 +201,12 @@
             background-repeat: no-repeat;
             background-position: center;
             transition: transform 0.2s ease;
+        }
+        .bullet {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
         }
         #game-over {
             position: fixed;
@@ -282,6 +296,7 @@
     </div>
     
     <div id="enemy-container"></div>
+    <div id="bullet-container"></div>
     
     <div id="fps-counter">FPS: --</div>
     
@@ -316,15 +331,14 @@
         let enemies = [];
         let minimapEnemies = [];
         let obstacles = [];
+        let bullets = [];
         let currentWeapon = 0;
 
-        // Weapon configurations
         const weapons = [
-            { name: "Assault Rifle", maxAmmo: 30, fireRate: 0.1, damage: 10, auto: true },
-            { name: "Plasma Pistol", maxAmmo: 50, fireRate: 0.2, damage: 15, auto: false }
+            { name: "Assault Rifle", maxAmmo: 30, fireRate: 0.1, damage: 10, auto: true, bulletSpeed: 2 },
+            { name: "Plasma Pistol", maxAmmo: 50, fireRate: 0.2, damage: 15, auto: false, bulletSpeed: 1.5 }
         ];
 
-        // Loading progress
         function updateLoadingProgress() {
             assetsLoaded++;
             const progress = assetsLoaded / totalAssets * 100;
@@ -336,7 +350,6 @@
             }
         }
 
-        // Three.js setup
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -345,7 +358,6 @@
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.getElementById('world').appendChild(renderer.domElement);
 
-        // Environment setup
         const pmremGenerator = new THREE.PMREMGenerator(renderer);
         pmremGenerator.compileEquirectangularShader();
         
@@ -360,7 +372,6 @@
                 updateLoadingProgress();
             });
 
-        // Terrain setup
         const terrainGeometry = new THREE.PlaneBufferGeometry(200, 200, 200, 200);
         const positions = terrainGeometry.attributes.position.array;
         for (let i = 0; i < positions.length; i += 3) {
@@ -385,7 +396,6 @@
         terrain.castShadow = true;
         scene.add(terrain);
 
-        // Player setup
         const player = {
             height: 2,
             radius: 0.5,
@@ -413,7 +423,6 @@
             return positions[index] || 0;
         }
 
-        // Lighting
         const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
         scene.add(ambientLight);
         
@@ -430,7 +439,6 @@
         directionalLight.shadow.camera.bottom = -100;
         scene.add(directionalLight);
 
-        // Obstacles
         function createObstacle(x, z, scale) {
             const height = getHeightAtPosition(x, z);
             const geometry = new THREE.BoxGeometry(scale, scale * 1.5, scale);
@@ -455,7 +463,70 @@
             createObstacle(x, z, scale);
         }
 
-        // Enemy class
+        class Bullet {
+            constructor(position, direction) {
+                this.position = position.clone();
+                this.direction = direction.clone().normalize();
+                this.speed = weapons[currentWeapon].bulletSpeed;
+                this.damage = weapons[currentWeapon].damage;
+                this.active = true;
+                this.distanceTraveled = 0;
+                this.maxDistance = 50;
+
+                this.mesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.1, 8, 8),
+                    new THREE.MeshBasicMaterial({ color: currentWeapon === 0 ? 0xff0000 : 0x00ffff })
+                );
+                this.mesh.position.copy(this.position);
+                scene.add(this.mesh);
+
+                this.element = document.createElement('div');
+                this.element.className = 'bullet';
+                this.element.style.background = currentWeapon === 0 ? '#ff0000' : '#00ffff';
+                document.getElementById('bullet-container').appendChild(this.element);
+            }
+
+            update() {
+                if (!this.active) return;
+
+                this.position.add(this.direction.clone().multiplyScalar(this.speed));
+                this.mesh.position.copy(this.position);
+                this.distanceTraveled += this.speed;
+
+                const screenPos = this.position.clone().project(camera);
+                const x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (-screenPos.y * 0.5 + 0.5) * window.innerHeight;
+
+                if (screenPos.z > 1 || this.distanceTraveled > this.maxDistance) {
+                    this.remove();
+                    return;
+                }
+
+                this.element.style.left = x + 'px';
+                this.element.style.top = y + 'px';
+
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    const enemy = enemies[i];
+                    const distance = this.position.distanceTo(enemy.position);
+                    if (distance < 1) { // Collision radius
+                        enemy.takeDamage(this.damage);
+                        this.remove();
+                        break;
+                    }
+                }
+            }
+
+            remove() {
+                this.active = false;
+                scene.remove(this.mesh);
+                this.mesh.geometry.dispose();
+                this.mesh.material.dispose();
+                this.element.remove();
+                const index = bullets.indexOf(this);
+                if (index !== -1) bullets.splice(index, 1);
+            }
+        }
+
         class Enemy {
             constructor() {
                 this.position = new THREE.Vector3();
@@ -563,7 +634,6 @@
             }
         }
 
-        // Input handling
         const keys = {};
         let mouseX = 0, mouseY = 0;
         let pitch = 0, yaw = 0;
@@ -604,7 +674,6 @@
 
         document.addEventListener('click', () => renderer.domElement.requestPointerLock());
 
-        // Game mechanics
         function reload() {
             if (reloading || currentAmmo === weapons[currentWeapon].maxAmmo || totalAmmo === 0) return;
             reloading = true;
@@ -632,19 +701,9 @@
             weapon.style.transform = 'translateX(50%) translateY(-10px)';
             setTimeout(() => weapon.style.transform = 'translateX(50%)', 50);
 
-            const raycaster = new THREE.Raycaster();
-            raycaster.set(camera.position, new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion));
-            
-            enemies.forEach(enemy => {
-                const intersect = raycaster.intersectObject(new THREE.Mesh(
-                    new THREE.BoxGeometry(1, 2, 1),
-                    new THREE.MeshBasicMaterial()
-                ).position.copy(enemy.position))[0];
-                
-                if (intersect && intersect.distance < 50) {
-                    enemy.takeDamage(weapons[currentWeapon].damage);
-                }
-            });
+            const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            const bullet = new Bullet(camera.position, direction);
+            bullets.push(bullet);
         }
 
         function switchWeapon(index) {
@@ -758,6 +817,8 @@
         function gameOver() {
             gameActive = false;
             document.getElementById('game-over').style.display = 'flex';
+            bullets.forEach(bullet => bullet.remove());
+            bullets = [];
         }
 
         document.getElementById('restart-button').addEventListener('click', () => {
@@ -770,6 +831,8 @@
             
             enemies.forEach(enemy => enemy.remove());
             enemies = [];
+            bullets.forEach(bullet => bullet.remove());
+            bullets = [];
 
             document.getElementById('health-fill').style.width = '100%';
             document.getElementById('shield-fill').style.width = '100%';
@@ -784,7 +847,6 @@
             spawnEnemies();
         });
 
-        // Post-processing
         const composer = new THREE.EffectComposer(renderer);
         const renderPass = new THREE.RenderPass(scene, camera);
         composer.addPass(renderPass);
@@ -801,7 +863,6 @@
         fxaaPass.material.uniforms['resolution'].value.y = 1 / (window.innerHeight * pixelRatio);
         composer.addPass(fxaaPass);
 
-        // FPS counter
         let frameCount = 0;
         let lastTime = performance.now();
         const fpsElement = document.getElementById('fps-counter');
@@ -817,7 +878,6 @@
             }
         }
 
-        // Animation loop
         let lastFrame = performance.now();
         function animate() {
             requestAnimationFrame(animate);
@@ -829,12 +889,12 @@
             if (gameActive) {
                 updatePlayerMovement(delta);
                 enemies.forEach(enemy => enemy.update());
+                bullets.forEach(bullet => bullet.update());
                 if (mouseDown && currentAmmo > 0 && !reloading && weapons[currentWeapon].auto) shoot();
             }
             composer.render();
         }
 
-        // Initialization
         camera.position.set(0, player.height, 0);
         spawnEnemies();
         animate();
