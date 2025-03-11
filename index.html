@@ -208,39 +208,6 @@
             height: 4px;
             border-radius: 50%;
         }
-        #game-over {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            display: none;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 1100;
-            color: white;
-            pointer-events: all;
-        }
-        #game-over h1 {
-            font-size: 48px;
-            margin-bottom: 20px;
-        }
-        #restart-button {
-            padding: 10px 20px;
-            background: #3498db;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 18px;
-            cursor: pointer;
-            transition: background 0.3s ease;
-            pointer-events: all;
-        }
-        #restart-button:hover {
-            background: #2980b9;
-        }
         #kill-counter {
             position: fixed;
             top: 20px;
@@ -301,11 +268,6 @@
     <div id="bullet-container"></div>
     
     <div id="fps-counter">FPS: --</div>
-    
-    <div id="game-over">
-        <h1>Game Over</h1>
-        <button id="restart-button">Restart Game</button>
-    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
@@ -331,7 +293,6 @@
         let reloading = false;
         let gameActive = true;
         let enemies = [];
-        let minimapEnemies = [];
         let obstacles = [];
         let bullets = [];
         let currentWeapon = 0;
@@ -775,7 +736,7 @@
             document.getElementById('weapon-switch').textContent = weapons[currentWeapon].name;
             document.getElementById('ammo-counter').textContent = `${currentAmmo} / ${totalAmmo}`;
             document.getElementById('weapon').style.backgroundImage = 
-                `url(gun.png)`; // Replace with actual weapon images
+                `url(/api/placeholder/400/320)`; // Replace with actual weapon images
         }
 
         function updatePlayerMovement(delta) {
@@ -849,7 +810,7 @@
 
             if (health <= 0) {
                 health = 0;
-                gameOver();
+                resetGame(); // Auto-reset instead of gameOver()
             }
 
             document.getElementById('health-fill').style.width = health + '%';
@@ -874,15 +835,6 @@
             enemies.push(new Enemy());
             const nextSpawn = Math.random() * 3000 + 2000;
             setTimeout(spawnEnemies, nextSpawn);
-        }
-
-        function gameOver() {
-            gameActive = false;
-            document.getElementById('game-over').style.display = 'flex';
-            bullets.forEach(bullet => bullet.remove());
-            bullets = [];
-            stopBackgroundMusic();
-            document.exitPointerLock();
         }
 
         function resetGame() {
@@ -923,7 +875,6 @@
             document.getElementById('ammo-counter').textContent = `${currentAmmo} / ${totalAmmo}`;
             document.getElementById('kill-counter').textContent = `Kills: 0`;
             document.getElementById('weapon-switch').textContent = weapons[currentWeapon].name;
-            document.getElementById('game-over').style.display = 'none';
 
             // Reset camera and controls
             camera.position.set(0, player.height, 0);
@@ -940,9 +891,6 @@
             startBackgroundMusic();
             renderer.domElement.requestPointerLock();
         }
-
-        // Add restart button listener
-        document.getElementById('restart-button').addEventListener('click', resetGame);
 
         const composer = new THREE.EffectComposer(renderer);
         const renderPass = new THREE.RenderPass(scene, camera);
