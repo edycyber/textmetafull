@@ -268,7 +268,7 @@
         Space to jump | Shift to sprint | 1-2 to switch weapons | E to enter vehicle
     </div>
     <div id="preloader">
-        <h2>Loading JOJO WAR Game...</h2>
+        <h2>Loading JOJO WAR GAME...</h2>
         <div id="loading-bar">
             <div id="loading-progress"></div>
         </div>
@@ -775,7 +775,7 @@
             document.getElementById('weapon-switch').textContent = weapons[currentWeapon].name;
             document.getElementById('ammo-counter').textContent = `${currentAmmo} / ${totalAmmo}`;
             document.getElementById('weapon').style.backgroundImage = 
-                `url(/gun.png)`; // Replace with actual weapon images
+                `url(gun.png)`; // Replace with actual weapon images
         }
 
         function updatePlayerMovement(delta) {
@@ -899,8 +899,9 @@
             yaw = 0;
             player.velocity.set(0, 0, 0);
             player.canJump = false;
+            player.lastDamageTime = 0;
 
-            // Clear arrays
+            // Clear dynamic elements
             while (enemies.length > 0) {
                 enemies[0].remove();
             }
@@ -909,17 +910,30 @@
                 bullets[0].remove();
             }
             bullets = [];
+            document.getElementById('enemy-container').innerHTML = '';
+            document.getElementById('bullet-container').innerHTML = '';
+            document.getElementById('minimap-content').innerHTML = `
+                <div class="minimap-player"></div>
+                <div class="minimap-direction"></div>
+            `;
 
             // Reset UI
             document.getElementById('health-fill').style.width = '100%';
             document.getElementById('shield-fill').style.width = '100%';
             document.getElementById('ammo-counter').textContent = `${currentAmmo} / ${totalAmmo}`;
             document.getElementById('kill-counter').textContent = `Kills: 0`;
-            document.getElementById('game-over').style.display = 'none'; // Explicitly hide Game Over
+            document.getElementById('weapon-switch').textContent = weapons[currentWeapon].name;
+            document.getElementById('game-over').style.display = 'none';
 
-            // Reset camera
+            // Reset camera and controls
             camera.position.set(0, player.height, 0);
             camera.rotation.set(0, 0, 0);
+            keys['w'] = false;
+            keys['a'] = false;
+            keys['s'] = false;
+            keys['d'] = false;
+            keys[' '] = false;
+            keys['Shift'] = false;
 
             // Restart game elements
             spawnEnemies();
@@ -928,8 +942,7 @@
         }
 
         // Add restart button listener
-        const restartButton = document.getElementById('restart-button');
-        restartButton.addEventListener('click', resetGame);
+        document.getElementById('restart-button').addEventListener('click', resetGame);
 
         const composer = new THREE.EffectComposer(renderer);
         const renderPass = new THREE.RenderPass(scene, camera);
