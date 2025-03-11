@@ -333,6 +333,7 @@
         let obstacles = [];
         let bullets = [];
         let currentWeapon = 0;
+        let backgroundMusic;
 
         const weapons = [
             { name: "Assault Rifle", maxAmmo: 30, fireRate: 0.1, damage: 10, auto: true, bulletSpeed: 2 },
@@ -346,7 +347,29 @@
             if (assetsLoaded >= totalAssets) {
                 setTimeout(() => {
                     document.querySelector('#preloader').style.display = 'none';
+                    startBackgroundMusic(); // Start music when loading is complete
                 }, 500);
+            }
+        }
+
+        // Music functions
+        function startBackgroundMusic() {
+            backgroundMusic = new Audio('energetic.mp3');
+            backgroundMusic.loop = false; // We'll handle looping manually
+            backgroundMusic.volume = 0.5; // Adjust volume as needed (0.0 to 1.0)
+            backgroundMusic.play();
+            
+            // Add event listener for when music ends
+            backgroundMusic.addEventListener('ended', function() {
+                this.currentTime = 0; // Reset to start
+                this.play(); // Play again
+            });
+        }
+
+        function stopBackgroundMusic() {
+            if (backgroundMusic) {
+                backgroundMusic.pause();
+                backgroundMusic.currentTime = 0;
             }
         }
 
@@ -508,7 +531,7 @@
                 for (let i = enemies.length - 1; i >= 0; i--) {
                     const enemy = enemies[i];
                     const distance = this.position.distanceTo(enemy.position);
-                    if (distance < 1) { // Collision radius
+                    if (distance < 1) {
                         enemy.takeDamage(this.damage);
                         this.remove();
                         break;
@@ -819,6 +842,7 @@
             document.getElementById('game-over').style.display = 'flex';
             bullets.forEach(bullet => bullet.remove());
             bullets = [];
+            stopBackgroundMusic();
         }
 
         document.getElementById('restart-button').addEventListener('click', () => {
@@ -845,6 +869,7 @@
             camera.position.set(x, getHeightAtPosition(x, z) + player.height, z);
             
             spawnEnemies();
+            startBackgroundMusic(); // Restart music on game restart
         });
 
         const composer = new THREE.EffectComposer(renderer);
