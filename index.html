@@ -221,6 +221,7 @@
             align-items: center;
             z-index: 1100;
             color: white;
+            pointer-events: all; /* Ensure clickable */
         }
         #game-over h1 {
             font-size: 48px;
@@ -235,6 +236,7 @@
             font-size: 18px;
             cursor: pointer;
             transition: background 0.3s ease;
+            pointer-events: all; /* Ensure clickable */
         }
         #restart-button:hover {
             background: #2980b9;
@@ -266,7 +268,7 @@
         Space to jump | Shift to sprint | 1-2 to switch weapons | E to enter vehicle
     </div>
     <div id="preloader">
-        <h2>Loading JOJO WAR GAME...</h2>
+        <h2>Loading JOJO WAR Game...</h2>
         <div id="loading-bar">
             <div id="loading-progress"></div>
         </div>
@@ -698,6 +700,7 @@
         document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
         document.addEventListener('mousemove', e => {
+            if (!gameActive) return;
             mouseX = e.movementX || 0;
             mouseY = e.movementY || 0;
             yaw -= mouseX * player.turnSpeed;
@@ -721,9 +724,11 @@
             if (e.button === 0) mouseDown = false;
         });
 
-        document.addEventListener('click', () => {
-            renderer.domElement.requestPointerLock();
-            startBackgroundMusic();
+        document.addEventListener('click', (e) => {
+            if (gameActive && e.target.tagName !== 'BUTTON') {
+                renderer.domElement.requestPointerLock();
+                startBackgroundMusic();
+            }
         });
 
         function reload() {
@@ -877,12 +882,12 @@
 
         function resetGame() {
             // Reset game state
+            gameActive = true;
             health = 100;
             shield = 100;
             currentAmmo = weapons[currentWeapon].maxAmmo;
             totalAmmo = 90;
             kills = 0;
-            gameActive = true;
             reloading = false;
             mouseDown = false;
             pitch = 0;
@@ -905,20 +910,29 @@
             document.getElementById('shield-fill').style.width = '100%';
             document.getElementById('ammo-counter').textContent = `${currentAmmo} / ${totalAmmo}`;
             document.getElementById('kill-counter').textContent = `Kills: 0`;
-            document.getElementById('game-over').style.display = 'none';
+            
+            // Hide game over screen immediately
+            const gameOverScreen = document.getElementById('game-over');
+            gameOverScreen.style.display = 'none';
 
-            // Reset camera position
+            // Reset camera
             camera.position.set(0, player.height, 0);
             camera.rotation.set(0, 0, 0);
 
             // Restart game elements
             spawnEnemies();
             startBackgroundMusic();
+
+            // Request pointer lock again
+            renderer.domElement.requestPointerLock();
         }
 
         // Add restart button listener
         const restartButton = document.getElementById('restart-button');
-        restartButton.addEventListener('click', resetGame);
+        restartButton.addEventListener('click', (e) => {
+            e.preventDefault(); // Prevent any default behavior
+            resetGame();
+        });
 
         const composer = new THREE.EffectComposer(renderer);
         const renderPass = new THREE.RenderPass(scene, camera);
