@@ -221,7 +221,7 @@
             align-items: center;
             z-index: 1100;
             color: white;
-            pointer-events: all; /* Ensure clickable */
+            pointer-events: all;
         }
         #game-over h1 {
             font-size: 48px;
@@ -236,7 +236,7 @@
             font-size: 18px;
             cursor: pointer;
             transition: background 0.3s ease;
-            pointer-events: all; /* Ensure clickable */
+            pointer-events: all;
         }
         #restart-button:hover {
             background: #2980b9;
@@ -268,7 +268,7 @@
         Space to jump | Shift to sprint | 1-2 to switch weapons | E to enter vehicle
     </div>
     <div id="preloader">
-        <h2>Loading JOJO WAR Game...</h2>
+        <h2>Loading JOJO WAR GAME...</h2>
         <div id="loading-bar">
             <div id="loading-progress"></div>
         </div>
@@ -331,7 +331,6 @@
         let reloading = false;
         let gameActive = true;
         let enemies = [];
-        let minimapEnemies = [];
         let obstacles = [];
         let bullets = [];
         let currentWeapon = 0;
@@ -342,6 +341,14 @@
             { name: "Assault Rifle", maxAmmo: 30, fireRate: 0.1, damage: 10, auto: true, bulletSpeed: 2 },
             { name: "Plasma Pistol", maxAmmo: 50, fireRate: 0.2, damage: 15, auto: false, bulletSpeed: 1.5 }
         ];
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('world').appendChild(renderer.domElement);
 
         function updateLoadingProgress() {
             assetsLoaded++;
@@ -401,51 +408,70 @@
             }
         }
 
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        document.getElementById('world').appendChild(renderer.domElement);
+        function loadAssets() {
+            assetsLoaded = 0;
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            pmremGenerator.compileEquirectangularShader();
+            
+            new THREE.RGBELoader()
+                .setDataType(THREE.UnsignedByteType)
+                .load('https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/sunset_in_the_chalk_quarry_1k.hdr', function(texture) {
+                    const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+                    scene.environment = envMap;
+                    scene.background = envMap;
+                    texture.dispose();
+                    pmremGenerator.dispose();
+                    updateLoadingProgress();
+                });
 
-        const pmremGenerator = new THREE.PMREMGenerator(renderer);
-        pmremGenerator.compileEquirectangularShader();
-        
-        new THREE.RGBELoader()
-            .setDataType(THREE.UnsignedByteType)
-            .load('https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/sunset_in_the_chalk_quarry_1k.hdr', function(texture) {
-                const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-                scene.environment = envMap;
-                scene.background = envMap;
-                texture.dispose();
-                pmremGenerator.dispose();
-                updateLoadingProgress();
+            const terrainGeometry = new THREE.PlaneBufferGeometry(200, 200, 200, 200);
+            const positions = terrainGeometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                const x = positions[i];
+                const y = positions[i + 1];
+                positions[i + 2] = (Math.sin(x * 0.03) * Math.cos(y * 0.03) * 2) + 
+                                 (Math.sin(x * 0.1) * Math.cos(y * 0.1) * 0.5);
+            }
+            terrainGeometry.computeVertexNormals();
+
+            const textureLoader = new THREE.TextureLoader();
+            const terrainMaterial = new THREE.MeshPhongMaterial({
+                map: textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/terrain/grasslight-big.jpg', updateLoadingProgress),
+                color: 0x777777,
+                shininess: 10,
+                specular: 0x222222
             });
 
-        const terrainGeometry = new THREE.PlaneBufferGeometry(200, 200, 200, 200);
-        const positions = terrainGeometry.attributes.position.array;
-        for (let i = 0; i < positions.length; i += 3) {
-            const x = positions[i];
-            const y = positions[i + 1];
-            positions[i + 2] = (Math.sin(x * 0.03) * Math.cos(y * 0.03) * 2) + 
-                             (Math.sin(x * 0.1) * Math.cos(y * 0.1) * 0.5);
+            const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+            terrain.rotation.x = -Math.PI / 2;
+            terrain.receiveShadow = true;
+            terrain.castShadow = true;
+            scene.add(terrain);
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(50, 100, -50);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 500;
+            directionalLight.shadow.camera.left = -100;
+            directionalLight.shadow.camera.right = 100;
+            directionalLight.shadow.camera.top = 100;
+            directionalLight.shadow.camera.bottom = -100;
+            scene.add(directionalLight);
+
+            obstacles = [];
+            for (let i = 0; i < 30; i++) {
+                const x = Math.random() * 180 - 90;
+                const z = Math.random() * 180 - 90;
+                const scale = Math.random() * 3 + 2;
+                createObstacle(x, z, scale);
+            }
         }
-        terrainGeometry.computeVertexNormals();
-
-        const textureLoader = new THREE.TextureLoader();
-        const terrainMaterial = new THREE.MeshPhongMaterial({
-            map: textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/terrain/grasslight-big.jpg', updateLoadingProgress),
-            color: 0x777777,
-            shininess: 10,
-            specular: 0x222222
-        });
-
-        const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
-        terrain.rotation.x = -Math.PI / 2;
-        terrain.receiveShadow = true;
-        terrain.castShadow = true;
-        scene.add(terrain);
 
         const player = {
             height: 2,
@@ -471,24 +497,8 @@
             const gridZ = Math.floor(v * cellsPerSide);
             if (gridX < 0 || gridX >= cellsPerSide || gridZ < 0 || gridZ >= cellsPerSide) return 0;
             const index = (gridZ * (cellsPerSide + 1) + gridX) * 3 + 2;
-            return positions[index] || 0;
+            return terrainGeometry.attributes.position.array[index] || 0;
         }
-
-        const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
-        scene.add(ambientLight);
-        
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(50, 100, -50);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        directionalLight.shadow.camera.near = 0.5;
-        directionalLight.shadow.camera.far = 500;
-        directionalLight.shadow.camera.left = -100;
-        directionalLight.shadow.camera.right = 100;
-        directionalLight.shadow.camera.top = 100;
-        directionalLight.shadow.camera.bottom = -100;
-        scene.add(directionalLight);
 
         function createObstacle(x, z, scale) {
             const height = getHeightAtPosition(x, z);
@@ -505,13 +515,6 @@
                 radius: scale * 0.6
             });
             updateLoadingProgress();
-        }
-
-        for (let i = 0; i < 30; i++) {
-            const x = Math.random() * 180 - 90;
-            const z = Math.random() * 180 - 90;
-            const scale = Math.random() * 3 + 2;
-            createObstacle(x, z, scale);
         }
 
         class Bullet {
@@ -667,7 +670,7 @@
                     const x = (tempVec.x * 0.5 + 0.5) * window.innerWidth;
                     const y = (-(tempVec.y * 0.5) + 0.5) * window.innerHeight;
                     const scale = Math.max(0.2, 1 - distance / 50);
-                    this.element.style.display = 'block';
+                    swigthis.element.style.display = 'block';
                     this.element.style.left = x + 'px';
                     this.element.style.top = y + 'px';
                     this.element.style.transform = `translate(-50%, -50%) scale(${scale})`;
@@ -691,13 +694,16 @@
         let mouseDown = false;
 
         document.addEventListener('keydown', e => {
-            keys[e.key.toLowerCase()] = true;
-            if (e.key.toLowerCase() === 'r' && !reloading && currentAmmo < weapons[currentWeapon].maxAmmo && totalAmmo > 0) reload();
+            if (!gameActive) return;
+            keys[e.key] = true;
+            if (e.key === 'r' && !reloading && currentAmmo < weapons[currentWeapon].maxAmmo && totalAmmo > 0) reload();
             if (e.key === '1') switchWeapon(0);
             if (e.key === '2') switchWeapon(1);
         });
 
-        document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+        document.addEventListener('keyup', e => {
+            keys[e.key] = false;
+        });
 
         document.addEventListener('mousemove', e => {
             if (!gameActive) return;
@@ -714,6 +720,7 @@
         });
 
         document.addEventListener('mousedown', e => {
+            if (!gameActive) return;
             if (e.button === 0) {
                 mouseDown = true;
                 if (currentAmmo > 0 && !reloading) shoot();
@@ -764,10 +771,10 @@
         }
 
         function switchWeapon(index) {
-            if (index === currentWeapon) return;
+            if (index === currentWeapon || index < 0 || index >= weapons.length) return;
             currentWeapon = index;
-            document.getElementById('weapon-switch').textContent = weapons[currentWeapon].name;
             currentAmmo = weapons[currentWeapon].maxAmmo;
+            document.getElementById('weapon-switch').textContent = weapons[currentWeapon].name;
             document.getElementById('ammo-counter').textContent = `${currentAmmo} / ${totalAmmo}`;
             document.getElementById('weapon').style.backgroundImage = 
                 `url(gun.png)`; // Replace with actual weapon images
@@ -776,7 +783,7 @@
         function updatePlayerMovement(delta) {
             if (!gameActive) return;
 
-            const moveSpeed = keys['shift'] ? player.speed * player.sprintMultiplier : player.speed;
+            const moveSpeed = keys['Shift'] ? player.speed * player.sprintMultiplier : player.speed;
             const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
             const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
             forward.y = 0;
@@ -816,7 +823,14 @@
 
             obstacles.forEach(obstacle => {
                 const dist = newPos.distanceTo(obstacle.position);
+                if (dist <        obstacles.forEach(obstacle => {
+                const dist = newPos.distanceTo(obstacle.position);
                 if (dist < player.radius + obstacle.radius) {
+                    const normal = newPos.clone().sub(obstacle.position).normalize();
+                    newPos.copy(camera.position);
+                    player.velocity.multiplyScalar(0);
+                }
+            });player.radius + obstacle.radius) {
                     const normal = newPos.clone().sub(obstacle.position).normalize();
                     newPos.copy(camera.position);
                     player.velocity.multiplyScalar(0);
@@ -881,6 +895,14 @@
         }
 
         function resetGame() {
+            // Clear existing scene objects
+            while (scene.children.length > 0) {
+                scene.remove(scene.children[0]);
+            }
+            obstacles = [];
+            enemies = [];
+            bullets = [];
+
             // Reset game state
             gameActive = true;
             health = 100;
@@ -895,42 +917,26 @@
             player.velocity.set(0, 0, 0);
             player.canJump = false;
 
-            // Clear arrays
-            while (enemies.length > 0) {
-                enemies[0].remove();
-            }
-            enemies = [];
-            while (bullets.length > 0) {
-                bullets[0].remove();
-            }
-            bullets = [];
-
             // Reset UI
             document.getElementById('health-fill').style.width = '100%';
             document.getElementById('shield-fill').style.width = '100%';
             document.getElementById('ammo-counter').textContent = `${currentAmmo} / ${totalAmmo}`;
             document.getElementById('kill-counter').textContent = `Kills: 0`;
-            
-            // Hide game over screen immediately
-            const gameOverScreen = document.getElementById('game-over');
-            gameOverScreen.style.display = 'none';
+            document.getElementById('game-over').style.display = 'none';
 
-            // Reset camera
+            // Reload assets and reset camera
+            loadAssets();
             camera.position.set(0, player.height, 0);
             camera.rotation.set(0, 0, 0);
 
             // Restart game elements
             spawnEnemies();
             startBackgroundMusic();
-
-            // Request pointer lock again
             renderer.domElement.requestPointerLock();
         }
 
-        // Add restart button listener
         const restartButton = document.getElementById('restart-button');
-        restartButton.addEventListener('click', (e) => {
-            e.preventDefault(); // Prevent any default behavior
+        restartButton.addEventListener('click', () => {
             resetGame();
         });
 
@@ -983,6 +989,7 @@
         }
 
         // Initial game setup
+        loadAssets();
         camera.position.set(0, player.height, 0);
         spawnEnemies();
         animate();
