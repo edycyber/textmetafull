@@ -342,8 +342,7 @@
         let currentWeapon = 0;
         let backgroundMusic;
         let musicStarted = false;
-        const totalEnemiesToSpawn = 15; // Fixed number of enemies per level
-        let enemiesSpawned = 0;
+        const totalEnemiesToSpawn = 10;
 
         const weapons = [
             { name: "Assault Rifle", maxAmmo: 30, fireRate: 0.1, damage: 10, auto: true, bulletSpeed: 2 },
@@ -878,12 +877,9 @@
         }
 
         function spawnEnemies() {
-            if (!gameActive || enemiesSpawned >= totalEnemiesToSpawn) return;
-            enemies.push(new Enemy());
-            enemiesSpawned++;
-            if (enemiesSpawned < totalEnemiesToSpawn) {
-                const nextSpawn = Math.random() * 3000 + 2000;
-                setTimeout(spawnEnemies, nextSpawn);
+            if (!gameActive) return;
+            for (let i = 0; i < totalEnemiesToSpawn; i++) {
+                enemies.push(new Enemy());
             }
         }
 
@@ -929,7 +925,6 @@
             player.velocity.set(0, 0, 0);
             player.canJump = false;
             player.lastDamageTime = 0;
-            enemiesSpawned = 0;
 
             // Clear enemies and bullets
             enemies.forEach(enemy => enemy.remove());
@@ -956,7 +951,7 @@
             camera.position.set(0, player.height, 0);
             camera.rotation.set(0, 0, 0);
 
-            // Restart gameplay
+            // Spawn enemies immediately
             spawnEnemies();
             startBackgroundMusic();
         }
