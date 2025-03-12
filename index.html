@@ -273,7 +273,7 @@
         Space to jump | Shift to sprint | 1-2 to switch weapons | E to enter vehicle
     </div>
     <div id="preloader">
-        <h2>Loading JOJO WAR GAME...</h2>
+        <h2>Loading Jojo War Game...</h2>
         <div id="loading-bar">
             <div id="loading-progress"></div>
         </div>
@@ -308,8 +308,8 @@
     <div id="fps-counter">FPS: --</div>
     
     <div id="game-over">
-        <h1>Game Over</h1>
-        <h2>Choose another level</h2>
+        <h1 id="game-over-title">Game Over</h1>
+        <h2 id="game-over-subtitle"></h2>
         <button id="restart-button">Restart Game</button>
     </div>
 
@@ -342,6 +342,8 @@
         let currentWeapon = 0;
         let backgroundMusic;
         let musicStarted = false;
+        const totalEnemiesToSpawn = 15; // Fixed number of enemies per level
+        let enemiesSpawned = 0;
 
         const weapons = [
             { name: "Assault Rifle", maxAmmo: 30, fireRate: 0.1, damage: 10, auto: true, bulletSpeed: 2 },
@@ -649,6 +651,7 @@
                     this.remove();
                     kills++;
                     document.getElementById('kill-counter').textContent = `Kills: ${kills}`;
+                    checkWinCondition();
                 }
             }
 
@@ -854,7 +857,7 @@
 
             if (health <= 0) {
                 health = 0;
-                gameOver();
+                gameOver(false); // Player lost
             }
 
             document.getElementById('health-fill').style.width = health + '%';
@@ -875,14 +878,32 @@
         }
 
         function spawnEnemies() {
-            if (!gameActive || enemies.length >= 10) return;
+            if (!gameActive || enemiesSpawned >= totalEnemiesToSpawn) return;
             enemies.push(new Enemy());
-            const nextSpawn = Math.random() * 3000 + 2000;
-            setTimeout(spawnEnemies, nextSpawn);
+            enemiesSpawned++;
+            if (enemiesSpawned < totalEnemiesToSpawn) {
+                const nextSpawn = Math.random() * 3000 + 2000;
+                setTimeout(spawnEnemies, nextSpawn);
+            }
         }
 
-        function gameOver() {
+        function checkWinCondition() {
+            if (gameActive && kills >= totalEnemiesToSpawn && enemies.length === 0) {
+                gameOver(true); // Player won
+            }
+        }
+
+        function gameOver(playerWon) {
             gameActive = false;
+            const title = document.getElementById('game-over-title');
+            const subtitle = document.getElementById('game-over-subtitle');
+            if (playerWon) {
+                title.textContent = "Level Completed";
+                subtitle.textContent = "Choose a different level";
+            } else {
+                title.textContent = "Game Over";
+                subtitle.textContent = "";
+            }
             document.getElementById('game-over').style.display = 'flex';
             bullets.forEach(bullet => bullet.remove());
             bullets = [];
@@ -908,6 +929,7 @@
             player.velocity.set(0, 0, 0);
             player.canJump = false;
             player.lastDamageTime = 0;
+            enemiesSpawned = 0;
 
             // Clear enemies and bullets
             enemies.forEach(enemy => enemy.remove());
